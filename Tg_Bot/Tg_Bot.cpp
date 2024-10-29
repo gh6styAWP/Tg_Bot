@@ -19,14 +19,29 @@ int main()
 {
     setlocale(LC_ALL, "Ru");
 
+    //вытягивание токена из файла
     string filePath = "C:\\Users\\gafar\\Desktop\\token.txt";
     string token;
+
     try {
         token = getToken(filePath);
     }
     catch(const exception& e) {
         cerr << "Ошибка: " << e.what() << endl;
         return 1;
+    }
+
+    TgBot::Bot bot(token);
+
+    //проверка запуска бота
+    try {
+        cout << "Бот запущен...\n";
+        TgBot::TgLongPoll longPoll(bot);
+        while (true) 
+            longPoll.start();  
+    }
+    catch (const exception& e) {
+        cerr << "Ошибка: " << e.what() << endl;
     }
 
 }
