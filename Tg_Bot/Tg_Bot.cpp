@@ -114,6 +114,15 @@ int main()
         bot.getApi().sendMessage(message->chat->id, welcomeMessage);
         });
 
+    // команда /help
+    bot.getEvents().onCommand("help", [&bot](Message::Ptr message) {
+        string helpMessage = u8"Команды:\n"
+            "/active - Самый активный участник беседы\n"
+            "/longest - Самое длинное сообщение в беседе\n"
+            "/popular - Самое популярное слово в чате";
+        bot.getApi().sendMessage(message->chat->id, helpMessage);
+        });
+
     // команда /active
     bot.getEvents().onCommand("active", [&bot, db](Message::Ptr message) {
         string mostActiveUser = getMostActiveUser(db);
