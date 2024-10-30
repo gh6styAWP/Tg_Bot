@@ -59,10 +59,10 @@ string getMostActiveUser(sqlite3* db) {
     if (sqlite3_step(stmt) == SQLITE_ROW) {
         string username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
         int messageCount = sqlite3_column_int(stmt, 1);
-        result = "@" + username + " с количеством сообщений: " + to_string(messageCount);
+        result = "@" + username + u8" самый активный болтун: " + to_string(messageCount) + u8" сообщений";
     }
     else {
-        result = "Нет данных для отображения.";
+        result = u8"Нет данных для отображения.";
     }
 
     sqlite3_finalize(stmt);
@@ -85,6 +85,9 @@ int main()
         return 1;
     }
 
+    //инициализация бота
+    Bot bot(token);
+
     // инициализация БД
     sqlite3* db;
     int exit = sqlite3_open("chat_messages.db", &db);
@@ -97,20 +100,6 @@ int main()
     }
     createTable(db);
 
-    //инициализация бота
-    TgBot::Bot bot(token);
-
-    //проверка запуска бота
-    try {
-        cout << "Бот запущен...\n";
-        TgBot::TgLongPoll longPoll(bot);
-        while (true) 
-            longPoll.start();  
-    }
-    catch (const exception& e) {
-        cerr << "Ошибка: " << e.what() << endl;
-    }
-
     // обработчик входящих сообщений
     bot.getEvents().onAnyMessage([&bot, db](Message::Ptr message) {
         if (StringTools::startsWith(message->text, "/")) {
@@ -119,10 +108,27 @@ int main()
         insertMessage(db, to_string(message->from->id), message->from->username, message->text);
         });
 
+    // команда /start
+    bot.getEvents().onCommand("start", [&bot](Message::Ptr message) {
+        string welcomeMessage = u8"Привет!";
+        bot.getApi().sendMessage(message->chat->id, welcomeMessage);
+        });
+
     // команда /active
     bot.getEvents().onCommand("active", [&bot, db](Message::Ptr message) {
         string mostActiveUser = getMostActiveUser(db);
         bot.getApi().sendMessage(message->chat->id, mostActiveUser);
         });
+
+    //проверка запуска бота
+    try {
+        cout << "Бот запущен...\n";
+        TgLongPoll longPoll(bot);
+        while (true)
+            longPoll.start();
+    }
+    catch (const exception& e) {
+        cerr << "Ошибка: " << e.what() << endl;
+    }
 }
 
