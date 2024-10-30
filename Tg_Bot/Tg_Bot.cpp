@@ -2,6 +2,9 @@
 #include <tgbot/tgbot.h>
 #include <fstream>
 #include <sqlite3.h> 
+#include <algorithm>
+#include <sstream>
+#include <map>
 using namespace std; 
 using namespace TgBot;
 
@@ -69,6 +72,7 @@ string getMostActiveUser(sqlite3* db) {
     return result;
 }
 //функция получения самого длинного сообщения
+//функция считает пробелы, надо это исправить
 string getLongestMessage(sqlite3* db) {
     string sql = "SELECT username, message, LENGTH(message) AS message_length FROM messages ORDER BY message_length DESC LIMIT 1;";
     sqlite3_stmt* stmt;
@@ -93,6 +97,7 @@ string getLongestMessage(sqlite3* db) {
     sqlite3_finalize(stmt);
     return result;
 }
+
 
 
 int main()
@@ -126,7 +131,7 @@ int main()
     }
     createTable(db);
 
-    // обработчик входящих сообщений
+    //обработчик входящих сообщений
     bot.getEvents().onAnyMessage([&bot, db](Message::Ptr message) {
         if (StringTools::startsWith(message->text, "/")) {
             return;
@@ -134,7 +139,7 @@ int main()
         insertMessage(db, to_string(message->from->id), message->from->username, message->text);
         });
 
-    // команда /start
+    //команда /start
     bot.getEvents().onCommand("start", [&bot](Message::Ptr message) {
         string welcomeMessage = u8"Привет! Вот что я умею:\n"
             "/active - Самый активный участник беседы.\n"
@@ -143,13 +148,13 @@ int main()
         bot.getApi().sendMessage(message->chat->id, welcomeMessage);
         });   
 
-    // команда /active
+    //команда /active
     bot.getEvents().onCommand("active", [&bot, db](Message::Ptr message) {
         string mostActiveUser = getMostActiveUser(db);
         bot.getApi().sendMessage(message->chat->id, mostActiveUser);
         });
 
-    // команда /longest
+    //команда /longest
     bot.getEvents().onCommand("longest", [&bot, db](Message::Ptr message) {
         string longestMessage = getLongestMessage(db);
         bot.getApi().sendMessage(message->chat->id, longestMessage);
