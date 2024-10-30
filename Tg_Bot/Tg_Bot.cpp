@@ -3,6 +3,7 @@
 #include <fstream>
 #include <sqlite3.h> 
 using namespace std; 
+using namespace TgBot;
 
 //функция извлечения токена из файла
 string getToken(const string& filePath) {
@@ -43,6 +44,30 @@ void insertMessage(sqlite3* db, const string& userId, const string& username, co
         sqlite3_free(errorMessage);
     }
 }
+//функция получения самого активного участника
+string getMostActiveUser(sqlite3* db) {
+    string sql = "SELECT username, COUNT(*) AS message_count FROM messages GROUP BY username ORDER BY message_count DESC LIMIT 1;";
+    sqlite3_stmt* stmt;
+
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        cerr << "Ошибка при подготовке запроса: " << sqlite3_errmsg(db) << endl;
+        return "";
+    }
+
+    string result;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        string username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        int messageCount = sqlite3_column_int(stmt, 1);
+        result = "@" + username + " с количеством сообщений: " + to_string(messageCount);
+    }
+    else {
+        result = "Нет данных для отображения.";
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
 
 int main()
 {
@@ -60,6 +85,18 @@ int main()
         return 1;
     }
 
+    // инициализация БД
+    sqlite3* db;
+    int exit = sqlite3_open("chat_messages.db", &db);
+    if (exit) {
+        cerr << "Не удалось открыть базу данных: " << sqlite3_errmsg(db) << endl;
+        return 1;
+    }
+    else {
+        cout << "База данных успешно открыта!\n";
+    }
+    createTable(db);
+
     //инициализация бота
     TgBot::Bot bot(token);
 
@@ -74,5 +111,18 @@ int main()
         cerr << "Ошибка: " << e.what() << endl;
     }
 
+    // обработчик входящих сообщений
+    bot.getEvents().onAnyMessage([&bot, db](Message::Ptr message) {
+        if (StringTools::startsWith(message->text, "/")) {
+            return;
+        }
+        insertMessage(db, to_string(message->from->id), message->from->username, message->text);
+        });
+
+    // команда /active
+    bot.getEvents().onCommand("active", [&bot, db](Message::Ptr message) {
+        string mostActiveUser = getMostActiveUser(db);
+        bot.getApi().sendMessage(message->chat->id, mostActiveUser);
+        });
 }
 
