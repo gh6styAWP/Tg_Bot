@@ -68,6 +68,32 @@ string getMostActiveUser(sqlite3* db) {
     sqlite3_finalize(stmt);
     return result;
 }
+//функция получения самого длинного сообщения
+string getLongestMessage(sqlite3* db) {
+    string sql = "SELECT username, message, LENGTH(message) AS message_length FROM messages ORDER BY message_length DESC LIMIT 1;";
+    sqlite3_stmt* stmt;
+
+    int rc = sqlite3_prepare_v2(db, sql.c_str(), -1, &stmt, nullptr);
+    if (rc != SQLITE_OK) {
+        cerr << "Ошибка при подготовке запроса: " << sqlite3_errmsg(db) << endl;
+        return "";
+    }
+
+    string result;
+    if (sqlite3_step(stmt) == SQLITE_ROW) {
+        string username = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0));
+        string message = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 1));
+        int messageLength = sqlite3_column_int(stmt, 2);
+        result = u8"Самое длинное сообщение отправил @" + username + u8": \n\n\"" + message + u8"\" \n\n(" + to_string(messageLength) + u8" символов)";
+    }
+    else {
+        result = u8"Нет данных для отображения.";
+    }
+
+    sqlite3_finalize(stmt);
+    return result;
+}
+
 
 int main()
 {
@@ -110,23 +136,23 @@ int main()
 
     // команда /start
     bot.getEvents().onCommand("start", [&bot](Message::Ptr message) {
-        string welcomeMessage = u8"Привет!";
+        string welcomeMessage = u8"Привет! Вот что я умею:\n"
+            "/active - Самый активный участник беседы.\n"
+            "/longest - Самое длинное сообщение в беседе (в разработке)\n"
+            "/popular - Самое популярное слово в чате (в разработке)";
         bot.getApi().sendMessage(message->chat->id, welcomeMessage);
-        });
-
-    // команда /help
-    bot.getEvents().onCommand("help", [&bot](Message::Ptr message) {
-        string helpMessage = u8"Команды:\n"
-            "/active - Самый активный участник беседы\n"
-            "/longest - Самое длинное сообщение в беседе\n"
-            "/popular - Самое популярное слово в чате";
-        bot.getApi().sendMessage(message->chat->id, helpMessage);
-        });
+        });   
 
     // команда /active
     bot.getEvents().onCommand("active", [&bot, db](Message::Ptr message) {
         string mostActiveUser = getMostActiveUser(db);
         bot.getApi().sendMessage(message->chat->id, mostActiveUser);
+        });
+
+    // команда /longest
+    bot.getEvents().onCommand("longest", [&bot, db](Message::Ptr message) {
+        string longestMessage = getLongestMessage(db);
+        bot.getApi().sendMessage(message->chat->id, longestMessage);
         });
 
     //проверка запуска бота
