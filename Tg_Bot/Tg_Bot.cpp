@@ -5,6 +5,10 @@
 #include <algorithm>
 #include <sstream>
 #include <map>
+#include <locale>
+#include <codecvt>
+#include <chrono>
+#include <thread>
 using namespace std; 
 using namespace TgBot;
 
@@ -47,6 +51,17 @@ void insertMessage(sqlite3* db, const string& userId, const string& username, co
         sqlite3_free(errorMessage);
     }
 }
+//функция очистки таблицы сообщений
+void clearMessagesTable(sqlite3* db) {
+    const char* sql = "DELETE FROM messages;";
+
+    char* errorMessage = nullptr;
+    int rc = sqlite3_exec(db, sql, 0, 0, &errorMessage);
+    if (rc != SQLITE_OK) {
+        cerr << "Ошибка при очистке таблицы: " << errorMessage << endl;
+        sqlite3_free(errorMessage);
+    }
+}
 //функция получения самого активного участника
 string getMostActiveUser(sqlite3* db) {
     string sql = "SELECT username, COUNT(*) AS message_count FROM messages GROUP BY username ORDER BY message_count DESC LIMIT 1;";
@@ -71,8 +86,7 @@ string getMostActiveUser(sqlite3* db) {
     sqlite3_finalize(stmt);
     return result;
 }
-//функция получения самого длинного сообщения
-//функция считает пробелы, надо это исправить
+//функция получения самого длинного сообщения (функция считает и пробелы)
 string getLongestMessage(sqlite3* db) {
     string sql = "SELECT username, message, LENGTH(message) AS message_length FROM messages ORDER BY message_length DESC LIMIT 1;";
     sqlite3_stmt* stmt;
@@ -159,6 +173,29 @@ int main()
         string longestMessage = getLongestMessage(db);
         bot.getApi().sendMessage(message->chat->id, longestMessage);
         });
+
+    //поток для автоматической очистки БД в 00:00 по МСК
+    thread cleanupThread([&bot, db]() {
+        while (true) {
+            // получение текущего времени
+            auto now = chrono::system_clock::now();
+            time_t now_c = chrono::system_clock::to_time_t(now);
+            tm localTime;
+            localtime_s(&localTime, &now_c);
+
+            // проверка, если время 00:00
+            if (localTime.tm_hour == 0 && localTime.tm_min == 0) {
+                clearMessagesTable(db);
+                string notificationMessage = "База данных сообщений была успешно очищена.";
+                bot.getApi().sendMessage(787717063, notificationMessage);
+                this_thread::sleep_for(chrono::minutes(1)); //ожидание, чтобы избежать повторной очистки в течение одной минуты
+            }
+            this_thread::sleep_for(chrono::seconds(30)); //проверка каждые 30 секунд
+        }
+        });
+
+
+
 
     //проверка запуска бота
     try {
